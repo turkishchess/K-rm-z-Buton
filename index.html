@@ -2,145 +2,328 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <title>2D Uzay Gemisi: Katil Kim?</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Uzay Gemisi Haritası Kodları</title>
     <style>
-        body { font-family: Arial, sans-serif; background-color: #1a1a2e; color: white; text-align: center; margin: 0; padding: 10px; }
-        #gameCanvas { background: #0f3460; border: 3px solid #e94560; border-radius: 8px; display: block; margin: 10px auto; }
-        .controls { margin-top: 10px; }
-        button { background: #e94560; color: white; border: none; padding: 10px 15px; font-size: 14px; border-radius: 5px; cursor: pointer; margin: 5px; }
-        button:hover { background: #ff6b6b; }
-        #log { font-size: 13px; color: #a2a8d3; height: 80px; overflow-y: auto; background: #16213e; padding: 8px; border-radius: 5px; width: 580px; margin: 10px auto; text-align: left; }
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #05050a; /* Derin uzay siyahı */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: white;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        #mapCanvas {
+            border: 2px solid #333;
+            box-shadow: 0 0 20px rgba(0, 0, 100, 0.5);
+        }
+        #controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 5px;
+        }
     </style>
 </head>
 <body>
 
-    <h2>🚀 2D Uzay Gemisi: Katil Kim?</h2>
-    <p>Hareket etmek için <b>W, A, S, D</b> veya <b>Yön Tuşlarını</b> kullan!</p>
-
-    <canvas id="gameCanvas" width="600" height="400"></canvas>
-
-    <div class="controls">
-        <button onclick="botEkle()">+ Bot Ekle</button>
-        <button onclick="oyunuBaslat()" style="background:#2ed573;">OYUNU BAŞLAT</button>
-        <button onclick="acilToplanti()" style="background:#ff9f43;">🚨 ACİL TOPLANTI</button>
+    <div id="controls">
+        <h3>Harita Kodları</h3>
+        <p>Hareket etmek için <b>W, A, S, D</b> tuşlarını kullanın.</p>
+        <p>Görüntü kalitesi sabittir.</p>
     </div>
 
-    <div id="log"></div>
+    <canvas id="mapCanvas" width="1200" height="600"></canvas>
 
-<script>
-    const canvas = document.getElementById("gameCanvas");
-    const ctx = canvas.getContext("2d");
+    <script>
+        const canvas = document.getElementById('mapCanvas');
+        const ctx = canvas.getContext('2d');
 
-    let oyuncular = [
-        { isim: "Sen", x: 300, y: 200, renk: "#e94560", isBot: false, hizi: 4 }
-    ];
-    let gizliKatil = "";
-    let oyunBasladi = false;
-    let tuslar = {};
+        // Renk Paleti (Görselden alınmıştır)
+        const COLORS = {
+            space: '#05050a',
+            wallOuter: '#3a445d', // Kalın dış çizgi
+            wallInner: '#4a5775', // Oda iç çizgileri
+            floor: '#1e2433',     // Odaların içi
+            floorAlt: '#161a24',  // Koridorlar/Karanlık yerler
+            textMain: '#ffeaa7',  // Sarı başlık metni
+            textSub: '#ffffff',   // Beyaz alt metin
+            vent: '#ff4757',      // Kırmızı üçgen
+            task: '#ffeaa7',      // Sarı görev noktası
+            engine: '#00d2ff',    // Mavi motor ateşi
+            electric: '#ffffff'   // Elektrik sembolü
+        };
 
-    window.addEventListener("keydown", e => tuslar[e.key] = true);
-    window.addEventListener("keyup", e => tuslar[e.key] = false);
+        // Harita Ölçeği ve Pozisyonu
+        let mapScale = 1;
+        let mapX = 0;
+        let mapY = 0;
 
-    function botEkle() {
-        if(oyunBasladi) return;
-        const renkler = ["#1e90ff", "#2ed573", "#ffa500", "#9b59b6", "#f1c40f"];
-        const yeniRenk = renkler[oyuncular.length % renkler.length];
-        oyuncular.push({
-            isim: "Bot_" + oyuncular.length,
-            x: Math.random() * (canvas.width - 40) + 20,
-            y: Math.random() * (canvas.height - 40) + 20,
-            renk: yeniRenk,
-            isBot: true,
-            dx: (Math.random() - 0.5) * 2,
-            dy: (Math.random() - 0.5) * 2
-        });
-        logYaz(`🤖 Bot_${oyuncular.length - 1} haritaya katıldı.`);
-    }
+        // Basit Oyuncu (Test için)
+        let player = { x: 600, y: 300, size: 10, color: 'white' };
 
-    function oyunuBaslat() {
-        if (oyuncular.length < 3) {
-            alert("En az 3 kişi olmalısınız! Bot Ekle butonuna bas.");
-            return;
-        }
-        gizliKatil = oyuncular[Math.floor(Math.random() * oyuncular.length)].isim;
-        oyunBasladi = true;
-        logYaz("🚀 Oyun başladı! Rolünüz gizlice dağıtıldı. Haritada dolaşabilirsiniz!");
-    }
+        // Klavye Kontrolü
+        let keys = {};
+        window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+        window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
-    function guncelle() {
-        let oyuncu = oyuncular[0];
-        if (tuslar["ArrowUp"] || tuslar["w"] || tuslar["W"]) if(oyuncu.y > 15) oyuncu.y -= oyuncu.hizi;
-        if (tuslar["ArrowDown"] || tuslar["s"] || tuslar["S"]) if(oyuncu.y < canvas.height - 15) oyuncu.y += oyuncu.hizi;
-        if (tuslar["ArrowLeft"] || tuslar["a"] || tuslar["A"]) if(oyuncu.x > 15) oyuncu.x -= oyuncu.hizi;
-        if (tuslar["ArrowRight"] || tuslar["d"] || tuslar["D"]) if(oyuncu.x < canvas.width - 15) oyuncu.x += oyuncu.hizi;
+        // --- ÇİZİM FONKSİYONLARI ---
 
-        // Bot Hareketleri
-        oyuncular.forEach(p => {
-            if (p.isBot) {
-                p.x += p.dx;
-                p.y += p.dy;
-                if (p.x < 15 || p.x > canvas.width - 15) p.dx *= -1;
-                if (p.y < 15 || p.y > canvas.height - 15) p.dy *= -1;
-            }
-        });
-    }
-
-    function ciz() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // Masalar ve Odalar (Engeller)
-        ctx.fillStyle = "#16213e";
-        ctx.fillRect(220, 140, 160, 120);
-        ctx.strokeStyle = "#4e54c8";
-        ctx.strokeRect(220, 140, 160, 120);
-
-        // Oyuncuları Çiz
-        oyuncular.forEach(p => {
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, 12, 0, Math.PI * 2);
-            ctx.fillStyle = p.renk;
-            ctx.fill();
-            ctx.closePath();
-
-            // Gözlük (Among Us Çantası/Gözü)
-            ctx.fillStyle = "#87ceeb";
-            ctx.fillRect(p.x - 3, p.y - 6, 8, 6);
-
-            // İsimler
+        function drawStarfield() {
+            ctx.fillStyle = COLORS.space;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Rastgele yıldızlar
             ctx.fillStyle = "white";
-            ctx.font = "10px Arial";
-            ctx.fillText(p.isim, p.x - 12, p.y - 16);
-        });
-    }
-
-    function oyunDongusu() {
-        guncelle();
-        ciz();
-        requestAnimationFrame(oyunDongusu);
-    }
-
-    function acilToplanti() {
-        if(!oyunBasladi) return;
-        logYaz("🚨 ACİL TOPLANTI ÇAĞRILDI!");
-        let elenen = oyuncular[Math.floor(Math.random() * oyuncular.length)].isim;
-        setTimeout(() => {
-            logYaz(`📢 Oylama bitti! En çok oyu alan: ${elenen}`);
-            if (elenen === gizliKatil) {
-                logYaz(`🎉 TEBRİKLER! ${elenen} KATİLDİ! Masumlar kazandı!`);
-            } else {
-                logYaz(`😱 YANLIŞ KİŞİ! ${elenen} katil değildi...`);
+            for(let i=0; i<200; i++) {
+                let x = (Math.sin(i * 123.4) * 0.5 + 0.5) * canvas.width;
+                let y = (Math.cos(i * 456.7) * 0.5 + 0.5) * canvas.height;
+                let size = (Math.sin(i) * 0.5 + 0.5) * 2;
+                ctx.fillRect(x, y, size, size);
             }
-        }, 1200);
-    }
+        }
 
-    function logYaz(m) {
-        const b = document.getElementById("log");
-        b.innerHTML += `<p>> ${m}</p>`;
-        b.scrollTop = b.scrollHeight;
-    }
+        // Çokgen veya Oda çizmek için yardımcı fonksiyon
+        function drawRoom(points, fillStyle, strokeStyle, lineWidth = 2) {
+            if (points.length < 2) return;
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, points[0].y);
+            for (let i = 1; i < points.length; i++) {
+                ctx.lineTo(points[i].x, points[i].y);
+            }
+            ctx.closePath();
+            ctx.fillStyle = fillStyle;
+            ctx.fill();
+            ctx.strokeStyle = strokeStyle;
+            ctx.lineWidth = lineWidth;
+            ctx.stroke();
+        }
 
-    oyunDongusu();
-</script>
+        // Elektrik sembolü çiz (⚡)
+        function drawElectricSymbol(x, y, size) {
+            ctx.beginPath();
+            ctx.moveTo(x, y - size);
+            ctx.lineTo(x - size/2, y + size/4);
+            ctx.lineTo(x + size/4, y - size/4);
+            ctx.lineTo(x, y + size);
+            ctx.lineTo(x + size/2, y - size/4);
+            ctx.lineTo(x - size/4, y + size/4);
+            ctx.closePath();
+            ctx.fillStyle = COLORS.electric;
+            ctx.fill();
+        }
 
+        // Görev noktası çiz (Sarı Çember)
+        function drawTask(x, y) {
+            ctx.beginPath();
+            ctx.arc(x, y, 12, 0, Math.PI * 2);
+            ctx.fillStyle = COLORS.task;
+            ctx.fill();
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        // Havalandırma çiz (Kırmızı Üçgen)
+        function drawVent(x, y) {
+            ctx.beginPath();
+            ctx.moveTo(x, y - 15);
+            ctx.lineTo(x - 15, y + 10);
+            ctx.lineTo(x + 15, y + 10);
+            ctx.closePath();
+            ctx.fillStyle = COLORS.vent;
+            ctx.fill();
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        // Motor ateşi çiz
+        function drawEngineThrust(x, y, scale=1) {
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.bezierCurveTo(x - 50*scale, y - 20*scale, x - 50*scale, y + 20*scale, x, y);
+            ctx.fillStyle = COLORS.engine;
+            ctx.fill();
+            // İç parıltı
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.bezierCurveTo(x - 30*scale, y - 10*scale, x - 30*scale, y + 10*scale, x, y);
+            ctx.fillStyle = 'white';
+            ctx.fill();
+        }
+
+        // Metinleri çiz
+        function drawText() {
+            ctx.textAlign = "center";
+            
+            // Ana Başlık
+            ctx.font = "bold 40px Arial";
+            ctx.fillStyle = COLORS.textMain;
+            ctx.fillText("Elektrik Hatası Düzeltildi", 600, 360);
+
+            // Alt Başlık (Toplantı odası)
+            ctx.font = "bold 25px Arial";
+            ctx.fillStyle = COLORS.textSub;
+            ctx.fillText("toplantı odası", 600, 390);
+
+            // Açıklama
+            ctx.font = "18px Arial";
+            ctx.fillStyle = COLORS.textMain;
+            ctx.fillText("(Düzgün Elektrik Panelleri Eklendi)", 600, 420);
+        }
+
+        // Ana Çizim Döngüsü
+        function drawMap() {
+            drawStarfield();
+
+            ctx.save();
+            ctx.translate(mapX, mapY);
+            ctx.scale(mapScale, mapScale);
+
+            // --- 1. ZEMİN VE KORİDORLAR (Koyu zemin) ---
+            drawRoom([
+                {x: 100, y: 100}, {x: 1100, y: 100}, {x: 1100, y: 500}, 
+                {x: 700, y: 500}, {x: 700, y: 400}, {x: 500, y: 400},
+                {x: 500, y: 500}, {x: 100, y: 500}
+            ], COLORS.floorAlt, 'transparent');
+
+            // --- 2. ODALAR VE DUVARLAR (Tam Geometri) ---
+
+            // Sol Ana Motor Odası (Üst, Orta, Alt)
+            drawRoom([
+                {x: 70, y: 70}, {x: 250, y: 70}, {x: 250, y: 530}, {x: 70, y: 530},
+                {x: 70, y: 450}, {x: 150, y: 450}, {x: 150, y: 350}, {x: 70, y: 350},
+                {x: 70, y: 250}, {x: 150, y: 250}, {x: 150, y: 150}, {x: 70, y: 150}
+            ], COLORS.floor, COLORS.wallOuter, 4);
+            // Oda içi ayrım çizgileri (Motorlar)
+            ctx.strokeStyle = COLORS.wallInner; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(150, 150); ctx.lineTo(250, 150); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(150, 250); ctx.lineTo(250, 250); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(150, 350); ctx.lineTo(250, 350); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(150, 450); ctx.lineTo(250, 450); ctx.stroke();
+
+            // Üst Orta Oda (Güvenlik)
+            drawRoom([
+                {x: 250, y: 70}, {x: 600, y: 70}, {x: 600, y: 250}, {x: 450, y: 250}, {x: 450, y: 150}, {x: 250, y: 150}
+            ], COLORS.floor, COLORS.wallOuter, 4);
+
+            // Alt Orta Oda (Elektrik)
+            drawRoom([
+                {x: 250, y: 350}, {x: 450, y: 350}, {x: 450, y: 250}, {x: 600, y: 250}, {x: 600, y: 530}, {x: 250, y: 530}
+            ], COLORS.floor, COLORS.wallOuter, 4);
+            // Elektrik iç bölme
+            ctx.beginPath(); ctx.moveTo(450, 350); ctx.lineTo(450, 530); ctx.stroke();
+
+            // Sağ Üst Koridor ve Oda (Navigasyon yolu)
+            drawRoom([
+                {x: 600, y: 70}, {x: 1000, y: 70}, {x: 1000, y: 150}, {x: 750, y: 150}, {x: 750, y: 250}, {x: 600, y: 250}
+            ], COLORS.floorAlt, COLORS.wallOuter, 4);
+
+            // Sağ Alt Oda (Yönetim)
+            drawRoom([
+                {x: 700, y: 350}, {x: 900, y: 350}, {x: 900, y: 530}, {x: 700, y: 530}
+            ], COLORS.floor, COLORS.wallOuter, 4);
+
+            // En Sağ Oda (Navigasyon)
+            drawRoom([
+                {x: 900, y: 250}, {x: 1130, y: 250}, {x: 1130, y: 450}, {x: 900, y: 450}
+            ], COLORS.floor, COLORS.wallOuter, 4);
+
+            // --- 3. MERKEZİ TOPLANTI ODASI (Sarı Daire) ---
+            ctx.beginPath();
+            ctx.arc(600, 300, 100, 0, Math.PI * 2);
+            ctx.fillStyle = COLORS.space; // İçerisi karanlık
+            ctx.fill();
+            ctx.strokeStyle = COLORS.wallOuter;
+            ctx.lineWidth = 6;
+            ctx.stroke();
+
+            // --- 4. GÖREVLER (SARI) VE VENTLER (KIRMIZI) ---
+            
+            // Sol Motor Odası
+            drawTask(100, 110); // Üst motor
+            drawTask(100, 300); // Ana motor
+            drawTask(100, 490); // Alt motor
+            drawElectricSymbol(90, 300, 15); // Ana motor elektrik
+            
+            drawVent(170, 210); // Sol üst vent
+            drawVent(170, 390); // Sol alt vent
+
+            // Güvenlik (Üst orta)
+            drawTask(350, 110);
+            drawElectricSymbol(550, 150, 15);
+
+            // Elektrik (Alt orta)
+            drawTask(300, 400); // Büyük panel
+            drawTask(400, 400); 
+            drawTask(480, 500); 
+            drawElectricSymbol(350, 450, 20); // Ana elektrik sembolü
+            drawVent(300, 500);
+
+            // Yönetim (Sağ alt)
+            drawTask(750, 400);
+
+            // Navigasyon (En sağ)
+            drawTask(1080, 290);
+            drawTask(1080, 410);
+            drawElectricSymbol(1080, 350, 15);
+            drawVent(950, 400);
+
+            // --- 5. MOTOR EFEKTLERİ ---
+            drawEngineThrust(70, 110, 0.8);
+            drawEngineThrust(70, 300, 1.2);
+            drawEngineThrust(70, 490, 0.8);
+
+            // --- 6. METİNLER ---
+            ctx.restore(); // Metinlerin ölçeklenmesini engellemek için (opsiyonel, görselde ölçekli duruyor)
+            // ctx.save(); ctx.translate(mapX, mapY); ctx.scale(mapScale, mapScale); // Metinleri de ölçeklemek isterseniz bunu açın
+            drawText();
+            // ctx.restore();
+
+            // --- OYUNCU ÇİZİMİ (Test için) ---
+            ctx.save();
+            ctx.translate(mapX, mapY);
+            ctx.scale(mapScale, mapScale);
+            ctx.beginPath();
+            ctx.arc(player.x, player.y, player.size, 0, Math.PI * 2);
+            ctx.fillStyle = player.color;
+            ctx.fill();
+            ctx.strokeStyle = 'black';
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        // --- OYUN MANTIĞI VE DÖNGÜSÜ ---
+
+        function update() {
+            // Oyuncu Hareketi (Duvar çarpışması eklenmemiştir, basit hareket)
+            let speed = 5;
+            if (keys['w']) player.y -= speed;
+            if (keys['s']) player.y += speed;
+            if (keys['a']) player.x -= speed;
+            if (keys['d']) player.x += speed;
+
+            // Kamerayı oyuncuya odakla (Basit takip)
+            // mapX = canvas.width / 2 - player.x * mapScale;
+            // mapY = canvas.height / 2 - player.y * mapScale;
+        }
+
+        function gameLoop() {
+            update();
+            drawMap();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Başlat
+        gameLoop();
+
+    </script>
 </body>
 </html>
