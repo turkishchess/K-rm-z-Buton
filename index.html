@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Uzay Gemisi: Katil Kim?</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #1a1a2e; color: white; text-align: center; padding: 20px; }
+        .game-card { background: #16213e; max-width: 500px; margin: 0 auto; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        button { background: #e94560; color: white; border: none; padding: 10px 20px; font-size: 16px; border-radius: 5px; cursor: pointer; margin: 5px; }
+        button:hover { background: #ff6b6b; }
+        .player-list { text-align: left; margin: 20px 0; }
+        .player-item { padding: 8px; margin: 4px 0; background: #0f3460; border-radius: 4px; display: flex; justify-content: space-between; }
+        #log { font-size: 14px; color: #a2a8d3; margin-top: 15px; height: 120px; overflow-y: auto; background: #0f3460; padding: 10px; border-radius: 4px; text-align: left; }
+    </style>
+</head>
+<body>
+
+<div class="game-card">
+    <h2>🚀 Uzay Gemisi: Katil Kim?</h2>
+    <p>Oyuncuları ve Botları ekle, oyunu başlat!</p>
+
+    <div>
+        <input type="text" id="playerName" placeholder="Oyuncu Adı">
+        <button onclick="oyuncuEkle()">Ekle</button>
+        <button onclick="botEkle()" style="background:#0f3460;">+ Bot Ekle</button>
+    </div>
+
+    <h3>Oyuncular:</h3>
+    <div id="playerList" class="player-list"></div>
+
+    <button onclick="oyunuBaslat()" style="width: 100%; font-weight: bold;">OYUNU BAŞLAT</button>
+
+    <div id="gameArea" style="display:none; margin-top: 20px;">
+        <hr>
+        <h3 id="roleDisplay"></h3>
+        <button onclick="acilToplanti()" style="background:#ff9f43;">🚨 ACİL TOPLANTI ÇAĞIR</button>
+        <div id="log"></div>
+    </div>
+</div>
+
+<script>
+    let oyuncular = [];
+    let gizliKatil = "";
+
+    function oyuncuEkle() {
+        const input = document.getElementById("playerName");
+        if (input.value.trim() !== "") {
+            oyuncular.push({ isim: input.value, isBot: false });
+            input.value = "";
+            listeGuncelle();
+        }
+    }
+
+    function botEkle() {
+        const botIsmi = "Bot_" + Math.floor(Math.random() * 1000);
+        oyuncular.push({ isim: botIsmi, isBot: true });
+        listeGuncelle();
+    }
+
+    function listeGuncelle() {
+        const listDiv = document.getElementById("playerList");
+        listDiv.innerHTML = "";
+        oyuncular.forEach(p => {
+            listDiv.innerHTML += `<div class="player-item"><span>${p.isim}</span> <span>${p.isBot ? '🤖 [BOT]' : '👤 [OYUNCU]'}</span></div>`;
+        });
+    }
+
+    function oyunuBaslat() {
+        if (oyuncular.length < 3) {
+            alert("Oyunu başlatmak için en az 3 kişi/bot olmalı!");
+            return;
+        }
+
+        const randomIndex = Math.floor(Math.random() * oyuncular.length);
+        gizliKatil = oyuncular[randomIndex].isim;
+
+        document.getElementById("gameArea").style.display = "block";
+        document.getElementById("roleDisplay").innerText = "Oyun Başladı! Rolleriniz gizlice dağıtıldı.";
+        logYaz("🚀 Uzay gemisi havalandı. Aranızda 1 KATİL var!");
+    }
+
+    function acilToplanti() {
+        logYaz("🚨 ACİL TOPLANTI! Herkes şüphelendiği kişiye oy veriyor...");
+
+        let oylar = {};
+        oyuncular.forEach(p => oylar[p.isim] = 0);
+
+        oyuncular.forEach(p => {
+            let hedef = oyuncular[Math.floor(Math.random() * oyuncular.length)].isim;
+            if (p.isBot) {
+                logYaz(`🤖 ${p.isim} birinden şüphelendi ve oyunu kullandı.`);
+            }
+            oylar[hedef] = (oylar[hedef] || 0) + 1;
+        });
+
+        let elenen = Object.keys(oylar).reduce((a, b) => oylar[a] > oylar[b] ? a : b);
+
+        setTimeout(() => {
+            logYaz(`📢 Oylama bitti! En çok oyu alan: ${elenen}`);
+            if (elenen === gizliKatil) {
+                logYaz(`🎉 TEBRİKLER! ${elenen} gerçekten KATİLDİ! Masumlar kazandı!`);
+            } else {
+                logYaz(`😱 YANLIŞ KİŞİ! ${elenen} katil değildi... Katil halen aranızda! (${gizliKatil})`);
+            }
+        }, 1500);
+    }
+
+    function logYaz(mesaj) {
+        const logBox = document.getElementById("log");
+        logBox.innerHTML += `<p>> ${mesaj}</p>`;
+        logBox.scrollTop = logBox.scrollHeight;
+    }
+</script>
+
+</body>
+</html>
