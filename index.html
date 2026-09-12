@@ -2,114 +2,144 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <title>Uzay Gemisi: Katil Kim?</title>
+    <title>2D Uzay Gemisi: Katil Kim?</title>
     <style>
-        body { font-family: Arial, sans-serif; background-color: #1a1a2e; color: white; text-align: center; padding: 20px; }
-        .game-card { background: #16213e; max-width: 500px; margin: 0 auto; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
-        button { background: #e94560; color: white; border: none; padding: 10px 20px; font-size: 16px; border-radius: 5px; cursor: pointer; margin: 5px; }
+        body { font-family: Arial, sans-serif; background-color: #1a1a2e; color: white; text-align: center; margin: 0; padding: 10px; }
+        #gameCanvas { background: #0f3460; border: 3px solid #e94560; border-radius: 8px; display: block; margin: 10px auto; }
+        .controls { margin-top: 10px; }
+        button { background: #e94560; color: white; border: none; padding: 10px 15px; font-size: 14px; border-radius: 5px; cursor: pointer; margin: 5px; }
         button:hover { background: #ff6b6b; }
-        .player-list { text-align: left; margin: 20px 0; }
-        .player-item { padding: 8px; margin: 4px 0; background: #0f3460; border-radius: 4px; display: flex; justify-content: space-between; }
-        #log { font-size: 14px; color: #a2a8d3; margin-top: 15px; height: 120px; overflow-y: auto; background: #0f3460; padding: 10px; border-radius: 4px; text-align: left; }
+        #log { font-size: 13px; color: #a2a8d3; height: 80px; overflow-y: auto; background: #16213e; padding: 8px; border-radius: 5px; width: 580px; margin: 10px auto; text-align: left; }
     </style>
 </head>
 <body>
 
-<div class="game-card">
-    <h2>🚀 Uzay Gemisi: Katil Kim?</h2>
-    <p>Oyuncuları ve Botları ekle, oyunu başlat!</p>
+    <h2>🚀 2D Uzay Gemisi: Katil Kim?</h2>
+    <p>Hareket etmek için <b>W, A, S, D</b> veya <b>Yön Tuşlarını</b> kullan!</p>
 
-    <div>
-        <input type="text" id="playerName" placeholder="Oyuncu Adı">
-        <button onclick="oyuncuEkle()">Ekle</button>
-        <button onclick="botEkle()" style="background:#0f3460;">+ Bot Ekle</button>
+    <canvas id="gameCanvas" width="600" height="400"></canvas>
+
+    <div class="controls">
+        <button onclick="botEkle()">+ Bot Ekle</button>
+        <button onclick="oyunuBaslat()" style="background:#2ed573;">OYUNU BAŞLAT</button>
+        <button onclick="acilToplanti()" style="background:#ff9f43;">🚨 ACİL TOPLANTI</button>
     </div>
 
-    <h3>Oyuncular:</h3>
-    <div id="playerList" class="player-list"></div>
-
-    <button onclick="oyunuBaslat()" style="width: 100%; font-weight: bold;">OYUNU BAŞLAT</button>
-
-    <div id="gameArea" style="display:none; margin-top: 20px;">
-        <hr>
-        <h3 id="roleDisplay"></h3>
-        <button onclick="acilToplanti()" style="background:#ff9f43;">🚨 ACİL TOPLANTI ÇAĞIR</button>
-        <div id="log"></div>
-    </div>
-</div>
+    <div id="log"></div>
 
 <script>
-    let oyuncular = [];
-    let gizliKatil = "";
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
 
-    function oyuncuEkle() {
-        const input = document.getElementById("playerName");
-        if (input.value.trim() !== "") {
-            oyuncular.push({ isim: input.value, isBot: false });
-            input.value = "";
-            listeGuncelle();
-        }
-    }
+    let oyuncular = [
+        { isim: "Sen", x: 300, y: 200, renk: "#e94560", isBot: false, hizi: 4 }
+    ];
+    let gizliKatil = "";
+    let oyunBasladi = false;
+    let tuslar = {};
+
+    window.addEventListener("keydown", e => tuslar[e.key] = true);
+    window.addEventListener("keyup", e => tuslar[e.key] = false);
 
     function botEkle() {
-        const botIsmi = "Bot_" + Math.floor(Math.random() * 1000);
-        oyuncular.push({ isim: botIsmi, isBot: true });
-        listeGuncelle();
-    }
-
-    function listeGuncelle() {
-        const listDiv = document.getElementById("playerList");
-        listDiv.innerHTML = "";
-        oyuncular.forEach(p => {
-            listDiv.innerHTML += `<div class="player-item"><span>${p.isim}</span> <span>${p.isBot ? '🤖 [BOT]' : '👤 [OYUNCU]'}</span></div>`;
+        if(oyunBasladi) return;
+        const renkler = ["#1e90ff", "#2ed573", "#ffa500", "#9b59b6", "#f1c40f"];
+        const yeniRenk = renkler[oyuncular.length % renkler.length];
+        oyuncular.push({
+            isim: "Bot_" + oyuncular.length,
+            x: Math.random() * (canvas.width - 40) + 20,
+            y: Math.random() * (canvas.height - 40) + 20,
+            renk: yeniRenk,
+            isBot: true,
+            dx: (Math.random() - 0.5) * 2,
+            dy: (Math.random() - 0.5) * 2
         });
+        logYaz(`🤖 Bot_${oyuncular.length - 1} haritaya katıldı.`);
     }
 
     function oyunuBaslat() {
         if (oyuncular.length < 3) {
-            alert("Oyunu başlatmak için en az 3 kişi/bot olmalı!");
+            alert("En az 3 kişi olmalısınız! Bot Ekle butonuna bas.");
             return;
         }
+        gizliKatil = oyuncular[Math.floor(Math.random() * oyuncular.length)].isim;
+        oyunBasladi = true;
+        logYaz("🚀 Oyun başladı! Rolünüz gizlice dağıtıldı. Haritada dolaşabilirsiniz!");
+    }
 
-        const randomIndex = Math.floor(Math.random() * oyuncular.length);
-        gizliKatil = oyuncular[randomIndex].isim;
+    function guncelle() {
+        let oyuncu = oyuncular[0];
+        if (tuslar["ArrowUp"] || tuslar["w"] || tuslar["W"]) if(oyuncu.y > 15) oyuncu.y -= oyuncu.hizi;
+        if (tuslar["ArrowDown"] || tuslar["s"] || tuslar["S"]) if(oyuncu.y < canvas.height - 15) oyuncu.y += oyuncu.hizi;
+        if (tuslar["ArrowLeft"] || tuslar["a"] || tuslar["A"]) if(oyuncu.x > 15) oyuncu.x -= oyuncu.hizi;
+        if (tuslar["ArrowRight"] || tuslar["d"] || tuslar["D"]) if(oyuncu.x < canvas.width - 15) oyuncu.x += oyuncu.hizi;
 
-        document.getElementById("gameArea").style.display = "block";
-        document.getElementById("roleDisplay").innerText = "Oyun Başladı! Rolleriniz gizlice dağıtıldı.";
-        logYaz("🚀 Uzay gemisi havalandı. Aranızda 1 KATİL var!");
+        // Bot Hareketleri
+        oyuncular.forEach(p => {
+            if (p.isBot) {
+                p.x += p.dx;
+                p.y += p.dy;
+                if (p.x < 15 || p.x > canvas.width - 15) p.dx *= -1;
+                if (p.y < 15 || p.y > canvas.height - 15) p.dy *= -1;
+            }
+        });
+    }
+
+    function ciz() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Masalar ve Odalar (Engeller)
+        ctx.fillStyle = "#16213e";
+        ctx.fillRect(220, 140, 160, 120);
+        ctx.strokeStyle = "#4e54c8";
+        ctx.strokeRect(220, 140, 160, 120);
+
+        // Oyuncuları Çiz
+        oyuncular.forEach(p => {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 12, 0, Math.PI * 2);
+            ctx.fillStyle = p.renk;
+            ctx.fill();
+            ctx.closePath();
+
+            // Gözlük (Among Us Çantası/Gözü)
+            ctx.fillStyle = "#87ceeb";
+            ctx.fillRect(p.x - 3, p.y - 6, 8, 6);
+
+            // İsimler
+            ctx.fillStyle = "white";
+            ctx.font = "10px Arial";
+            ctx.fillText(p.isim, p.x - 12, p.y - 16);
+        });
+    }
+
+    function oyunDongusu() {
+        guncelle();
+        ciz();
+        requestAnimationFrame(oyunDongusu);
     }
 
     function acilToplanti() {
-        logYaz("🚨 ACİL TOPLANTI! Herkes şüphelendiği kişiye oy veriyor...");
-
-        let oylar = {};
-        oyuncular.forEach(p => oylar[p.isim] = 0);
-
-        oyuncular.forEach(p => {
-            let hedef = oyuncular[Math.floor(Math.random() * oyuncular.length)].isim;
-            if (p.isBot) {
-                logYaz(`🤖 ${p.isim} birinden şüphelendi ve oyunu kullandı.`);
-            }
-            oylar[hedef] = (oylar[hedef] || 0) + 1;
-        });
-
-        let elenen = Object.keys(oylar).reduce((a, b) => oylar[a] > oylar[b] ? a : b);
-
+        if(!oyunBasladi) return;
+        logYaz("🚨 ACİL TOPLANTI ÇAĞRILDI!");
+        let elenen = oyuncular[Math.floor(Math.random() * oyuncular.length)].isim;
         setTimeout(() => {
             logYaz(`📢 Oylama bitti! En çok oyu alan: ${elenen}`);
             if (elenen === gizliKatil) {
-                logYaz(`🎉 TEBRİKLER! ${elenen} gerçekten KATİLDİ! Masumlar kazandı!`);
+                logYaz(`🎉 TEBRİKLER! ${elenen} KATİLDİ! Masumlar kazandı!`);
             } else {
-                logYaz(`😱 YANLIŞ KİŞİ! ${elenen} katil değildi... Katil halen aranızda! (${gizliKatil})`);
+                logYaz(`😱 YANLIŞ KİŞİ! ${elenen} katil değildi...`);
             }
-        }, 1500);
+        }, 1200);
     }
 
-    function logYaz(mesaj) {
-        const logBox = document.getElementById("log");
-        logBox.innerHTML += `<p>> ${mesaj}</p>`;
-        logBox.scrollTop = logBox.scrollHeight;
+    function logYaz(m) {
+        const b = document.getElementById("log");
+        b.innerHTML += `<p>> ${m}</p>`;
+        b.scrollTop = b.scrollHeight;
     }
+
+    oyunDongusu();
 </script>
 
 </body>
